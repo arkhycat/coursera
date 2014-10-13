@@ -6,31 +6,52 @@
 
 int main(int argv, char** argc)
 {
-    std::fstream fs1(argc[1], std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream fs1(argc[1], std::ios::in | std::ios::binary);
+
     CryptoPP::SHA256 hash;
 
-    size_t bufsize = 0;
-    byte digest[CryptoPP::SHA256::DIGESTSIZE];
-    do{
-        int pos = fs1.tellg();
-        if (pos >= BLOCK_SIZE - 1) //reading from end, so we need to know distance from beginning of the file
-            bufsize = BLOCK_SIZE;
+    if (argv > 1){
+        if (fs1.is_open())
+        {
+
+            size_t block_size = 0;
+            byte digest[CryptoPP::SHA256::DIGESTSIZE];
+            fs1.seekg(0, fs1.end);
+            int digest_size = 0;
+            int pos = fs1.tellg();
+            while(pos > 0){
+
+                block_size = (pos - 1) % BLOCK_SIZE + 1;
+                pos -= block_size;
+                fs1.seekg(pos);
+
+                byte buf[block_size + digest_size];\
+                fs1.read(reinterpret_cast<char*>(buf), block_size);
+
+                for (int i = 0; i <  digest_size; i++)
+                    buf[block_size + i] = digest[i];
+
+                hash.CalculateDigest(digest, buf, block_size+digest_size);
+
+                digest_size = CryptoPP::SHA256::DIGESTSIZE;
+            }
+
+            for (int i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++)
+                std::cout << std::hex << (int)digest[i] << std::dec;
+            std::cout << std::endl;
+        }
         else
-            bufsize = pos + 1;
-
-        byte buf[bufsize];
-        fs1.seekg(pos - bufsize);
-        fs1.read(reinterpret_cast<char*>(buf), bufsize);
-        hash.CalculateDigest(digest, buf, bufsize);
-        fs1.seekp(pos - bufsize);
-        for (int i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++) //appending current MAC to the previous block
-            fs1 << digest[i];
-        fs1.seekg(pos - bufsize + CryptoPP::SHA256::DIGESTSIZE); //returning again, because read() shifted our position in stream, but we also appended MAC to the end of stream, so position shifted to MAC size
-    }while(bufsize == BLOCK_SIZE);
-
-    for (int i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++)
-        std::cout << digest[i];
-
+        {
+            std::cout << "cannot open file " << argc[1];
+        }
+    }else{
+        byte digest[CryptoPP::SHA256::DIGESTSIZE];
+        byte test[2] = {1, 1};
+        hash.CalculateDigest(digest, test, 2);
+        for (int i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++)
+            std::cout << std::hex << (int)digest[i] << std::dec;
+    }
+    std::cout << std::endl;
     return 0;
 }
 
